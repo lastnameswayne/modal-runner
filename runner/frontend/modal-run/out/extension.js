@@ -40,26 +40,27 @@ exports.deactivate = deactivate;
 const vscode = __importStar(require("vscode"));
 const child_process_1 = require("child_process");
 const path = __importStar(require("path"));
+const crypto_1 = require("crypto");
 let rustProcess = null;
+let requestsMap = new Map();
 // This method is called when your extension is activated
 // Your extension is activated the very first time the command is executed
 function activate(context) {
     console.log('Extension activated');
-    context.subscriptions.push(vscode.languages.registerCodeLensProvider({ language: 'python' }, new ModalCodeLensProvider()));
-    // Use the console to output diagnostic information (console.log) and errors (console.error)
-    // This line of code will only be executed once when your extension is activated
     if (rustProcess) {
         vscode.window.showWarningMessage('Rust process already running');
         return;
     }
-    // Path to the Rust binary (adjust based on your build location)
     const binaryPath = path.join(context.extensionPath, '..', '..', '..', 'runner', 'backend', 'target', 'debug', 'backend');
-    console.log("BINARY PATH", binaryPath);
     rustProcess = (0, child_process_1.spawn)(binaryPath);
     rustProcess.stdout?.on('data', (data) => {
-        const response = data.toString().trim();
-        console.log('Received from Rust:', response);
-        vscode.window.showInformationMessage(`Rust says: ${response}`);
+        const response = JSON.parse(data);
+        console.log("got response", response);
+        const resolve = requestsMap.get(response.id);
+        if (resolve) {
+            requestsMap.delete(response.id);
+            resolve(response);
+        }
     });
     rustProcess.stderr?.on('data', (data) => {
         console.error('Rust error:', data.toString());
@@ -68,37 +69,52 @@ function activate(context) {
         console.log(`Rust process exited with code ${code}`);
         rustProcess = null;
     });
+    let disposable = vscode.commands.registerCommand('modal-run.runEntrypoint', () => {
+        vscode.window.showInformationMessage("hit run");
+    });
+    context.subscriptions.push(vscode.languages.registerCodeLensProvider({ language: 'python' }, new ModalCodeLensProvider()));
+}
+function request(command) {
+    return new Promise((resolve, reject) => {
+        if (!rustProcess || !rustProcess.stdin) {
+            console.log("Rustprocess nil", rustProcess);
+            return [];
+        }
+        console.log("writing request to rust", JSON.stringify(command));
+        rustProcess?.stdin?.write(JSON.stringify(command) + "\n");
+        requestsMap.set(command.id, resolve);
+        return;
+    });
+}
+class ModalCodeLensProvider {
+    async provideCodeLenses(document) {
+        if (!rustProcess || !rustProcess.stdin) {
+            console.log("Rustprocess nil", rustProcess);
+            return [];
+        }
+        const codeLenses = [];
+        let command = { command: "parse", file: document.uri.fsPath, id: (0, crypto_1.randomUUID)() };
+        let res = await request(command);
+        console.log(res.functions);
+        res.functions.forEach((f) => {
+            let line = f.line;
+            console.log(f);
+            const range = new vscode.Range(line - 1, 0, line - 1, 0);
+            const lens = new vscode.CodeLens(range, {
+                title: '▶ Run',
+                command: 'modal-run.runEntrypoint',
+                arguments: [document.uri, line - 1]
+            });
+            codeLenses.push(lens);
+        });
+        return codeLenses;
+    }
 }
 // This method is called when your extension is deactivated
 function deactivate() {
     if (rustProcess) {
         rustProcess.kill();
         rustProcess = null;
-    }
-}
-class ModalCodeLensProvider {
-    provideCodeLenses(document) {
-        if (!rustProcess || !rustProcess.stdin) {
-            console.log("Rustprocess nil", rustProcess);
-            return [];
-        }
-        let command = { command: "parse", file: document.uri.fsPath };
-        rustProcess.stdin.write(JSON.stringify(command));
-        const codeLenses = [];
-        const text = document.getText();
-        const lines = text.split('\n');
-        for (let i = 0; i < lines.length; i++) {
-            if (lines[i].includes('@app.local_entrypoint()')) {
-                const range = new vscode.Range(i, 0, i, 0);
-                const lens = new vscode.CodeLens(range, {
-                    title: '▶ Run',
-                    command: 'modal-run.runEntrypoint',
-                    arguments: [document.uri, i]
-                });
-                codeLenses.push(lens);
-            }
-        }
-        return codeLenses;
     }
 }
 //# sourceMappingURL=extension.js.map

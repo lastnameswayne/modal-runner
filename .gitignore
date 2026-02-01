@@ -1,0 +1,19 @@
+# Rust
+runner/backend/target/
+
+# Node.js / VSCode Extension
+runner/frontend/modal-run/node_modules/
+runner/frontend/modal-run/out/
+*.vsix
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# OS
+.DS_Store
+
+# Editor
+.vscode/
+*.swp
