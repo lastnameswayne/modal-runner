@@ -69,8 +69,33 @@ function activate(context) {
         console.log(`Rust process exited with code ${code}`);
         rustProcess = null;
     });
-    let disposable = vscode.commands.registerCommand('modal-run.runEntrypoint', () => {
-        vscode.window.showInformationMessage("hit run");
+    const outputChannel = vscode.window.createOutputChannel('Modal');
+    vscode.commands.registerCommand('modal-run.runEntrypoint', async (filePath, functionName) => {
+        const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+        if (!workspaceRoot) {
+            console.log("Workspace not found");
+            return;
+        }
+        const modalPath = path.join(workspaceRoot, '.venv', 'bin', 'modal');
+        outputChannel.show();
+        outputChannel.appendLine(`Running: modal run ${filePath}::${functionName}`);
+        outputChannel.appendLine('---');
+        const { spawn } = require('child_process');
+        const proc = spawn(modalPath, ['run', `${filePath}::${functionName}`], {
+            shell: true
+        });
+        proc.stdout.on('data', (data) => {
+            outputChannel.append(data.toString());
+        });
+        proc.stderr.on('data', (data) => {
+            outputChannel.append(data.toString());
+        });
+        proc.on('error', (err) => {
+            outputChannel.appendLine(`Error: ${err.message}`);
+        });
+        proc.on('close', (code) => {
+            outputChannel.appendLine(`\nExited with code ${code}`);
+        });
     });
     context.subscriptions.push(vscode.languages.registerCodeLensProvider({ language: 'python' }, new ModalCodeLensProvider()));
 }
@@ -95,15 +120,13 @@ class ModalCodeLensProvider {
         const codeLenses = [];
         let command = { command: "parse", file: document.uri.fsPath, id: (0, crypto_1.randomUUID)() };
         let res = await request(command);
-        console.log(res.functions);
         res.functions.forEach((f) => {
-            let line = f.line;
-            console.log(f);
-            const range = new vscode.Range(line - 1, 0, line - 1, 0);
+            let line = f.line - 1;
+            const range = new vscode.Range(line, 0, line, 0);
             const lens = new vscode.CodeLens(range, {
                 title: '▶ Run',
                 command: 'modal-run.runEntrypoint',
-                arguments: [document.uri, line - 1]
+                arguments: [document.uri.fsPath, f.name]
             });
             codeLenses.push(lens);
         });

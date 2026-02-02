@@ -49,11 +49,44 @@ export function activate(context: vscode.ExtensionContext) {
 		console.log(`Rust process exited with code ${code}`);
 		rustProcess = null;
 	});
+	const outputChannel = vscode.window.createOutputChannel('Modal');
+	vscode.commands.registerCommand('modal-run.runEntrypoint',
+		async (filePath: string, functionName: string) => {
+			const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+			if (!workspaceRoot) {
+				console.log("Workspace not found")
+				return
+			}
+			const modalPath = path.join(workspaceRoot, '.venv', 'bin', 'modal');
 
-	let disposable = vscode.commands.registerCommand('modal-run.runEntrypoint', () => {
-		vscode.window.showInformationMessage("hit run")
 
-	})
+
+			outputChannel.show();
+			outputChannel.appendLine(`Running: modal run ${filePath}::${functionName}`);
+			outputChannel.appendLine('---');
+
+			const { spawn } = require('child_process');
+			const proc = spawn(modalPath, ['run', `${filePath}::${functionName}`], {
+				shell: true
+			});
+
+			proc.stdout.on('data', (data: Buffer) => {
+				outputChannel.append(data.toString());
+			});
+
+			proc.stderr.on('data', (data: Buffer) => {
+				outputChannel.append(data.toString());
+			});
+
+			proc.on('error', (err: Error) => {
+				outputChannel.appendLine(`Error: ${err.message}`);
+			});
+
+			proc.on('close', (code: number) => {
+				outputChannel.appendLine(`\nExited with code ${code}`);
+			});
+		}
+	);
 
 	context.subscriptions.push(
 		vscode.languages.registerCodeLensProvider(
@@ -88,15 +121,13 @@ class ModalCodeLensProvider implements vscode.CodeLensProvider {
 
 		let command = { command: "parse", file: document.uri.fsPath, id: randomUUID() }
 		let res = await request(command)
-		console.log(res.functions)
 		res.functions.forEach((f: any) => {
-			let line = f.line
-			console.log(f)
+			let line = f.line - 1
 			const range = new vscode.Range(line, 0, line, 0);
 			const lens = new vscode.CodeLens(range, {
 				title: '▶ Run',
 				command: 'modal-run.runEntrypoint',
-				arguments: [document.uri, line]
+				arguments: [document.uri.fsPath, f.name]
 			});
 			codeLenses.push(lens);
 		})

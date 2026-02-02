@@ -3,12 +3,15 @@ use std::env;
 use std::fs;
 use serde::{ Deserialize, Serialize };
 use tree_sitter::{ Parser, Query, QueryCursor };
+use std::process::Command;
 
 #[derive(Deserialize)]
 struct Request {
     command: String,
     file: String,
     id: String,
+    #[serde(default)]
+    function_name: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -46,9 +49,6 @@ fn main() {
             }
         };
 
-        // eprintln!("Command: {}", request.command);
-        // eprintln!("File: {:?}", request.file);
-
         if request.command == "parse" {
             let source_code = match fs::read_to_string(request.file) {
                 Ok(r) => r,
@@ -76,18 +76,23 @@ fn main() {
             };
 
             let root_node = tree.root_node();
-            // eprintln!("Root: {}", root_node.kind());
 
             let mut functions: Vec<Function> = vec! {};
 
             for (i, child) in root_node.children(&mut root_node.walk()).enumerate() {
                 if child.kind() == "decorated_definition" {
-                    let source_code: String = source_code[child.byte_range()].to_string();
-                    let function: Function = Function {
-                        name: source_code,
-                        line: child.start_position().row + 1,
-                    };
-                    functions.push(function);
+                    if
+                        let Some(name) = child
+                            .child_by_field_name("definition")
+                            .and_then(|def| def.child_by_field_name("name"))
+                    {
+                        let function_name: String = source_code[name.byte_range()].to_string();
+                        let function: Function = Function {
+                            name: function_name,
+                            line: child.start_position().row + 1,
+                        };
+                        functions.push(function);
+                    }
                 }
             }
 
