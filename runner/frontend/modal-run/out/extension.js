@@ -44,6 +44,7 @@ const crypto_1 = require("crypto");
 let rustProcess = null;
 let requestsMap = new Map();
 const runStatus = new Map(); // keeps function's run status state
+const runID = new Map();
 const modalURLRegex = /https:\/\/modal\.com\/apps\/[^\s]+/;
 // This method is called when your extension is activated
 // Your extension is activated the very first time the command is executed
@@ -74,7 +75,7 @@ function activate(context) {
     const outputChannel = vscode.window.createOutputChannel('Modal');
     const provider = new ModalCodeLensProvider();
     vscode.commands.registerCommand('modal-run.runEntrypoint', async (filePath, functionName) => {
-        runStatus.set(functionName, "running");
+        runStatus.set(functionName, { runStatus: 'running', modalRunID: '' });
         provider.refresh();
         const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
         if (!workspaceRoot) {
@@ -107,15 +108,21 @@ function activate(context) {
             outputChannel.append(data.toString());
         });
         proc.on('error', (err) => {
-            runStatus.set(functionName, `failed ${runURL}`);
+            runStatus.set(functionName, { runStatus: 'failed', modalRunID: runURL });
             provider.refresh();
             outputChannel.appendLine(`Error: ${err.message}`);
         });
         proc.on('close', (code) => {
-            runStatus.set(functionName, `suceeded ${runURL}`);
+            runStatus.set(functionName, { runStatus: 'succeeded', modalRunID: runURL });
             provider.refresh();
             outputChannel.appendLine(`\nExited with code ${code}`);
         });
+    });
+    vscode.commands.registerCommand('modal-run.dashboard-url', (status) => {
+        console.log('Opening dashboard:', status.modalRunID);
+        if (status.modalRunID) {
+            vscode.env.openExternal(vscode.Uri.parse(status.modalRunID));
+        }
     });
     context.subscriptions.push(vscode.languages.registerCodeLensProvider({ language: 'python' }, provider));
 }
@@ -149,13 +156,21 @@ class ModalCodeLensProvider {
         res.functions.forEach((f) => {
             let line = f.line - 1;
             const range = new vscode.Range(line, 0, line, 0);
-            const status = runStatus.get(f.name);
             const lens = new vscode.CodeLens(range, {
-                title: `▶ Run - ${status}`,
+                title: `▶ Run`,
                 command: 'modal-run.runEntrypoint',
                 arguments: [document.uri.fsPath, f.name]
             });
             codeLenses.push(lens);
+            const status = runStatus.get(f.name);
+            if (status) {
+                const lens = new vscode.CodeLens(range, {
+                    title: `${status.runStatus} ${status.modalRunID}`,
+                    command: 'modal-run.dashboard-url',
+                    arguments: [status]
+                });
+                codeLenses.push(lens);
+            }
         });
         return codeLenses;
     }
