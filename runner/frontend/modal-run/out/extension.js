@@ -43,6 +43,8 @@ const path = __importStar(require("path"));
 const crypto_1 = require("crypto");
 let rustProcess = null;
 let requestsMap = new Map();
+const runStatus = new Map(); // keeps function's run status state
+const modalURLRegex = /https:\/\/modal\.com\/apps\/[^\s]+/;
 // This method is called when your extension is activated
 // Your extension is activated the very first time the command is executed
 function activate(context) {
@@ -70,7 +72,10 @@ function activate(context) {
         rustProcess = null;
     });
     const outputChannel = vscode.window.createOutputChannel('Modal');
+    const provider = new ModalCodeLensProvider();
     vscode.commands.registerCommand('modal-run.runEntrypoint', async (filePath, functionName) => {
+        runStatus.set(functionName, "running");
+        provider.refresh();
         const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
         if (!workspaceRoot) {
             console.log("Workspace not found");
@@ -80,24 +85,39 @@ function activate(context) {
         outputChannel.show();
         outputChannel.appendLine(`Running: modal run ${filePath}::${functionName}`);
         outputChannel.appendLine('---');
+        let runURL = "";
         const { spawn } = require('child_process');
         const proc = spawn(modalPath, ['run', `${filePath}::${functionName}`], {
             shell: true
         });
         proc.stdout.on('data', (data) => {
+            const text = data.toString();
+            const urlMatch = text.match(modalURLRegex);
+            if (urlMatch) {
+                runURL = urlMatch[0];
+            }
             outputChannel.append(data.toString());
         });
         proc.stderr.on('data', (data) => {
+            const text = data.toString();
+            const urlMatch = text.match(modalURLRegex);
+            if (urlMatch) {
+                runURL = urlMatch[0];
+            }
             outputChannel.append(data.toString());
         });
         proc.on('error', (err) => {
+            runStatus.set(functionName, `failed ${runURL}`);
+            provider.refresh();
             outputChannel.appendLine(`Error: ${err.message}`);
         });
         proc.on('close', (code) => {
+            runStatus.set(functionName, `suceeded ${runURL}`);
+            provider.refresh();
             outputChannel.appendLine(`\nExited with code ${code}`);
         });
     });
-    context.subscriptions.push(vscode.languages.registerCodeLensProvider({ language: 'python' }, new ModalCodeLensProvider()));
+    context.subscriptions.push(vscode.languages.registerCodeLensProvider({ language: 'python' }, provider));
 }
 function request(command) {
     return new Promise((resolve, reject) => {
@@ -112,6 +132,12 @@ function request(command) {
     });
 }
 class ModalCodeLensProvider {
+    // Add event emitter to refresh CodeLens
+    _onDidChangeCodeLenses = new vscode.EventEmitter();
+    onDidChangeCodeLenses = this._onDidChangeCodeLenses.event;
+    refresh() {
+        this._onDidChangeCodeLenses.fire();
+    }
     async provideCodeLenses(document) {
         if (!rustProcess || !rustProcess.stdin) {
             console.log("Rustprocess nil", rustProcess);
@@ -123,8 +149,9 @@ class ModalCodeLensProvider {
         res.functions.forEach((f) => {
             let line = f.line - 1;
             const range = new vscode.Range(line, 0, line, 0);
+            const status = runStatus.get(f.name);
             const lens = new vscode.CodeLens(range, {
-                title: '▶ Run',
+                title: `▶ Run - ${status}`,
                 command: 'modal-run.runEntrypoint',
                 arguments: [document.uri.fsPath, f.name]
             });
