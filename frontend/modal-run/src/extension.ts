@@ -1,9 +1,52 @@
-// The module 'vscode' contains the VS Code extensibility API
-// Import the module and reference it with the alias vscode in your code below
 import * as vscode from 'vscode';
-import { spawn, ChildProcess } from 'child_process';
+import { spawn, ChildProcess, execSync } from 'child_process';
 import * as path from 'path';
+import * as fs from 'fs';
 import { randomUUID } from 'crypto';
+
+function findModalPath(filePath?: string): string | null {
+	const configPath = vscode.workspace.getConfiguration('modal-run').get<string>('modalPath');
+	if (configPath && fs.existsSync(configPath)) {
+		return configPath;
+	}
+
+	if (filePath) {
+		const fileDir = path.dirname(filePath);
+		const localVenv = path.join(fileDir, '.venv', 'bin', 'modal');
+		if (fs.existsSync(localVenv)) {
+			return localVenv;
+		}
+	}
+
+	const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
+	if (workspaceRoot) {
+		const venvPath = path.join(workspaceRoot, '.venv', 'bin', 'modal');
+		if (fs.existsSync(venvPath)) {
+			return venvPath;
+		}
+	}
+
+	const homeDir = process.env.HOME || '';
+	const commonPaths = [
+		path.join(homeDir, '.local', 'bin', 'modal'),
+		'/usr/local/bin/modal',
+		'/opt/homebrew/bin/modal',
+	];
+	for (const p of commonPaths) {
+		if (fs.existsSync(p)) {
+			return p;
+		}
+	}
+
+	try {
+		const result = execSync('which modal', { encoding: 'utf8', shell: '/bin/zsh' }).trim();
+		if (result && fs.existsSync(result)) {
+			return result;
+		}
+	} catch { }
+
+	return null;
+}
 
 let rustProcess: ChildProcess | null = null;
 let requestsMap = new Map<string, (reponse: any) => void>()
@@ -22,8 +65,6 @@ type runStatus = {
 const runStatus = new Map<string, runStatus>(); // keeps function's run status state
 
 
-// This method is called when your extension is activated
-// Your extension is activated the very first time the command is executed
 export function activate(context: vscode.ExtensionContext) {
 	console.log('Extension activated');
 	if (rustProcess) {
@@ -32,7 +73,7 @@ export function activate(context: vscode.ExtensionContext) {
 	}
 	const binaryPath = path.join(
 		context.extensionPath,
-		'..', '..', '..', 'runner', 'backend', 'target', 'debug', 'backend'
+		'..', '..', 'backend', 'target', 'debug', 'backend'
 	);
 	rustProcess = spawn(binaryPath);
 
@@ -83,7 +124,18 @@ export function activate(context: vscode.ExtensionContext) {
 			}, 500);
 
 			const { spawn } = require('child_process');
-			const modalPath = path.join(workspaceRoot, '.venv', 'bin', 'modal');
+			const modalPath = findModalPath(filePath);
+			if (!modalPath) {
+				vscode.window.showErrorMessage(
+					'Modal CLI not found. Install modal or set path in Settings > Modal Run.',
+					'Open Settings'
+				).then(selection => {
+					if (selection === 'Open Settings') {
+						vscode.commands.executeCommand('workbench.action.openSettings', 'modal-run.modalPath');
+					}
+				});
+				return;
+			}
 			const proc = spawn(modalPath, ['run', `${filePath}::${functionName}`], {
 				shell: true
 			});
@@ -163,7 +215,6 @@ function request(command: any): Promise<any> {
 }
 
 class ModalCodeLensProvider implements vscode.CodeLensProvider {
-	// Add event emitter to refresh CodeLens
 	private _onDidChangeCodeLenses = new vscode.EventEmitter<void>();
 	readonly onDidChangeCodeLenses = this._onDidChangeCodeLenses.event;
 
@@ -178,8 +229,6 @@ class ModalCodeLensProvider implements vscode.CodeLensProvider {
 			console.log("Rustprocess nil", rustProcess)
 			return []
 		}
-		console.log("5. provideCodeLenses called");
-
 		const codeLenses: vscode.CodeLens[] = [];
 
 		let command = { command: "parse", file: document.uri.fsPath, id: randomUUID() }
@@ -244,7 +293,6 @@ function getTimeAgo(date: Date | undefined): string {
 	return `${Math.floor(seconds / 86400)}d ago`;
 }
 
-// This method is called when your extension is deactivated
 export function deactivate() {
 	if (rustProcess) {
 		rustProcess.kill();

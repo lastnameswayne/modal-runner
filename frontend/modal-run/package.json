@@ -9,15 +9,21 @@
   "categories": [
     "Other"
   ],
-  "activationEvents": ["onStartupFinished"],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
   "main": "./out/extension.js",
   "contributes": {
-    "commands": [
-      {
-        "command": "modal-run.helloWorld",
-        "title": "Hello World"
+    "configuration": {
+      "title": "Modal Run",
+      "properties": {
+        "modal-run.modalPath": {
+          "type": "string",
+          "default": "",
+          "description": "Path to modal executable (e.g., /path/to/.venv/bin/modal). Leave empty to auto-detect."
+        }
       }
-    ]
+    }
   },
   "scripts": {
     "vscode:prepublish": "npm run compile",

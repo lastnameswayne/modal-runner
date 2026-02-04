@@ -1,9 +1,9 @@
 # Rust
-runner/backend/target/
+backend/target/
 
 # Node.js / VSCode Extension
-runner/frontend/modal-run/node_modules/
-runner/frontend/modal-run/out/
+frontend/modal-run/node_modules/
+frontend/modal-run/out/
 *.vsix
 
 # Python
