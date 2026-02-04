@@ -43,9 +43,11 @@ const path = __importStar(require("path"));
 const crypto_1 = require("crypto");
 let rustProcess = null;
 let requestsMap = new Map();
-const runStatus = new Map(); // keeps function's run status state
-const runID = new Map();
+const runTimestampAgeThreshold = 6 * 60 * 60 * 1000;
+const runFunctionCommand = "modal-run.runEntrypoint";
+const openURLCommand = "modal-run.dashboard-url";
 const modalURLRegex = /https:\/\/modal\.com\/apps\/[^\s]+/;
+const runStatus = new Map(); // keeps function's run status state
 // This method is called when your extension is activated
 // Your extension is activated the very first time the command is executed
 function activate(context) {
@@ -74,20 +76,28 @@ function activate(context) {
     });
     const outputChannel = vscode.window.createOutputChannel('Modal');
     const provider = new ModalCodeLensProvider();
-    vscode.commands.registerCommand('modal-run.runEntrypoint', async (filePath, functionName) => {
-        runStatus.set(functionName, { runStatus: 'running', modalRunID: '' });
-        provider.refresh();
+    vscode.commands.registerCommand(runFunctionCommand, async (filePath, functionName) => {
+        console.log('1. Command triggered:', functionName);
+        console.log('2. Status set to running');
+        console.log('3. refresh() called');
         const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
         if (!workspaceRoot) {
             console.log("Workspace not found");
             return;
         }
-        const modalPath = path.join(workspaceRoot, '.venv', 'bin', 'modal');
         outputChannel.show();
         outputChannel.appendLine(`Running: modal run ${filePath}::${functionName}`);
         outputChannel.appendLine('---');
         let runURL = "";
+        runStatus.set(functionName, { runStatus: 'running', modalRunURL: '', runTimestamp: new Date() });
+        // Keep refreshing every 500ms before the modal function returns.
+        // Otherwise, the runStatus will not update to 'running', due to the refresh event being queued.   
+        const refreshInterval = setInterval(() => {
+            console.log('Interval refresh');
+            provider.refresh();
+        }, 500);
         const { spawn } = require('child_process');
+        const modalPath = path.join(workspaceRoot, '.venv', 'bin', 'modal');
         const proc = spawn(modalPath, ['run', `${filePath}::${functionName}`], {
             shell: true
         });
@@ -105,23 +115,31 @@ function activate(context) {
             if (urlMatch) {
                 runURL = urlMatch[0];
             }
+            const now = new Date();
+            runStatus.set(functionName, { runStatus: 'failed', modalRunURL: runURL, runTimestamp: now });
             outputChannel.append(data.toString());
         });
         proc.on('error', (err) => {
-            runStatus.set(functionName, { runStatus: 'failed', modalRunID: runURL });
-            provider.refresh();
+            clearInterval(refreshInterval);
             outputChannel.appendLine(`Error: ${err.message}`);
         });
         proc.on('close', (code) => {
-            runStatus.set(functionName, { runStatus: 'succeeded', modalRunID: runURL });
+            clearInterval(refreshInterval);
+            const now = new Date();
+            if (code == 0) {
+                runStatus.set(functionName, { runStatus: 'succeeded', modalRunURL: runURL, runTimestamp: now });
+            }
+            else {
+                runStatus.set(functionName, { runStatus: 'failed', modalRunURL: '', runTimestamp: now });
+            }
             provider.refresh();
             outputChannel.appendLine(`\nExited with code ${code}`);
         });
     });
-    vscode.commands.registerCommand('modal-run.dashboard-url', (status) => {
-        console.log('Opening dashboard:', status.modalRunID);
-        if (status.modalRunID) {
-            vscode.env.openExternal(vscode.Uri.parse(status.modalRunID));
+    vscode.commands.registerCommand(openURLCommand, (status) => {
+        console.log('Opening dashboard:', status.modalRunURL);
+        if (status.modalRunURL) {
+            vscode.env.openExternal(vscode.Uri.parse(status.modalRunURL));
         }
     });
     context.subscriptions.push(vscode.languages.registerCodeLensProvider({ language: 'python' }, provider));
@@ -143,6 +161,7 @@ class ModalCodeLensProvider {
     _onDidChangeCodeLenses = new vscode.EventEmitter();
     onDidChangeCodeLenses = this._onDidChangeCodeLenses.event;
     refresh() {
+        console.log('4. Inside refresh(), firing event');
         this._onDidChangeCodeLenses.fire();
     }
     async provideCodeLenses(document) {
@@ -150,6 +169,7 @@ class ModalCodeLensProvider {
             console.log("Rustprocess nil", rustProcess);
             return [];
         }
+        console.log("5. provideCodeLenses called");
         const codeLenses = [];
         let command = { command: "parse", file: document.uri.fsPath, id: (0, crypto_1.randomUUID)() };
         let res = await request(command);
@@ -158,15 +178,20 @@ class ModalCodeLensProvider {
             const range = new vscode.Range(line, 0, line, 0);
             const lens = new vscode.CodeLens(range, {
                 title: `▶ Run`,
-                command: 'modal-run.runEntrypoint',
+                command: runFunctionCommand,
                 arguments: [document.uri.fsPath, f.name]
             });
             codeLenses.push(lens);
             const status = runStatus.get(f.name);
-            if (status) {
+            console.log(`6. Status for ${f.name}:`, status);
+            if (!status?.runTimestamp) {
+                return;
+            }
+            const timeSinceLastRun = Math.floor((new Date().getTime() - status.runTimestamp.getTime()));
+            if (status && timeSinceLastRun && timeSinceLastRun < runTimestampAgeThreshold) {
                 const lens = new vscode.CodeLens(range, {
-                    title: `${status.runStatus} ${status.modalRunID}`,
-                    command: 'modal-run.dashboard-url',
+                    title: `${formatRunStatus(status)}`,
+                    command: openURLCommand,
                     arguments: [status]
                 });
                 codeLenses.push(lens);
@@ -174,6 +199,32 @@ class ModalCodeLensProvider {
         });
         return codeLenses;
     }
+}
+function formatRunStatus(status) {
+    const timeAgo = getTimeAgo(status.runTimestamp);
+    switch (status.runStatus) {
+        case 'running':
+            return `⏳ Running...`;
+        case 'succeeded':
+            return `✓ Completed (${timeAgo}) | ${status.modalRunURL}`;
+        case 'failed':
+            return `✗ Failed (${timeAgo})`;
+        default:
+            return status.runStatus;
+    }
+}
+function getTimeAgo(date) {
+    if (!date) {
+        return "";
+    }
+    const seconds = Math.floor((new Date().getTime() - date.getTime()) / 1000);
+    if (seconds < 60)
+        return `${seconds}s ago`;
+    if (seconds < 3600)
+        return `${Math.floor(seconds / 60)}m ago`;
+    if (seconds < 86400)
+        return `${Math.floor(seconds / 3600)}h ago`;
+    return `${Math.floor(seconds / 86400)}d ago`;
 }
 // This method is called when your extension is deactivated
 function deactivate() {

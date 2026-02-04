@@ -1,5 +1,5 @@
 import modal
-
+import time
 app = modal.App("example-get-started")
 
 
@@ -11,4 +11,5 @@ def square(x: int):
 
 @app.local_entrypoint()
 def main():
+    time.sleep(10)
     print("the square is", square.remote(42))
