@@ -1,17 +1,12 @@
-use std::io::{ self, BufRead, Write }; // Combine io imports
-use std::env;
+use std::io::{ self, BufRead, Stdout, Write };
 use std::fs;
 use serde::{ Deserialize, Serialize };
-use tree_sitter::{ Parser, Query, QueryCursor };
-use std::process::Command;
+use tree_sitter::{ LanguageError, Node, Parser };
 
 #[derive(Deserialize)]
 struct Request {
-    command: String,
     file: String,
     id: String,
-    #[serde(default)]
-    function_name: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -36,84 +31,76 @@ fn main() {
                 break;
             }
         };
-
         if line.trim().is_empty() {
             continue;
         }
-
-        let request: Request = match serde_json::from_str(&line) {
+        let response = match read_functions_from_file(&line) {
             Ok(r) => r,
             Err(e) => {
-                eprintln!("Invalid JSON: {}", e);
+                eprintln!("Could not read functions in file: {e}");
                 return;
             }
         };
+        write_response_to_stdout(&mut stdout, response);
+    }
+}
 
-        if request.command == "parse" {
-            let source_code = match fs::read_to_string(request.file) {
-                Ok(r) => r,
-                Err(e) => {
-                    eprintln!("Can't read file: {}", e);
-                    return;
-                }
+fn read_functions_from_file(line: &str) -> Result<Response, Box<dyn std::error::Error>> {
+    let request: Request = serde_json::from_str(line)?;
+    let source_code = fs::read_to_string(&request.file)?;
+    let mut parser = get_python_parser()?;
+    let tree = parser.parse(&source_code, None).ok_or("Failed to parse")?;
+
+    let functions = parse_all_decorated_functions(tree.root_node(), source_code);
+
+    Ok(Response {
+        id: request.id,
+        functions,
+    })
+}
+
+fn parse_all_decorated_functions(root_node: Node, source_code: String) -> Vec<Function> {
+    let mut functions: Vec<Function> = vec! {};
+
+    for (_i, child) in root_node.children(&mut root_node.walk()).enumerate() {
+        if child.kind() != "decorated_definition" {
+            continue;
+        }
+        if
+            let Some(name) = child
+                .child_by_field_name("definition")
+                .and_then(|def| def.child_by_field_name("name"))
+        {
+            let function_name: String = source_code[name.byte_range()].to_string();
+            let function: Function = Function {
+                name: function_name,
+                line: child.start_position().row + 1,
             };
-            let mut parser = Parser::new();
-            let language: tree_sitter::Language = tree_sitter_python::LANGUAGE.into();
-            match parser.set_language(&language) {
-                Ok(_) => {}
-                Err(e) => {
-                    eprintln!("Failed to set language: {}", e);
-                    return;
-                }
-            }
-
-            let tree = match parser.parse(&source_code, None) {
-                Some(t) => t,
-                None => {
-                    eprintln!("Failed to parse");
-                    return;
-                }
-            };
-
-            let root_node = tree.root_node();
-
-            let mut functions: Vec<Function> = vec! {};
-
-            for (i, child) in root_node.children(&mut root_node.walk()).enumerate() {
-                if child.kind() == "decorated_definition" {
-                    if
-                        let Some(name) = child
-                            .child_by_field_name("definition")
-                            .and_then(|def| def.child_by_field_name("name"))
-                    {
-                        let function_name: String = source_code[name.byte_range()].to_string();
-                        let function: Function = Function {
-                            name: function_name,
-                            line: child.start_position().row + 1,
-                        };
-                        functions.push(function);
-                    }
-                }
-            }
-
-            let response = Response {
-                id: request.id,
-                functions: functions,
-            };
-
-            let response_json = match serde_json::to_string(&response) {
-                Ok(r) => r,
-                Err(e) => {
-                    eprintln!("Can't write file: {}", e);
-                    return;
-                }
-            };
-
-            stdout.write_all(response_json.as_bytes()).unwrap();
-            stdout.write_all(b"\n").unwrap();
-            stdout.flush().unwrap();
+            functions.push(function);
         }
     }
+    return functions;
+}
+
+fn get_python_parser() -> Result<Parser, LanguageError> {
+    let mut parser = Parser::new();
+    let language: tree_sitter::Language = tree_sitter_python::LANGUAGE.into();
+    parser.set_language(&language)?;
+    Ok(parser)
+}
+
+fn write_response_to_stdout(stdout: &mut Stdout, response: Response) {
+    let response_json = match serde_json::to_string(&response) {
+        Ok(r) => r,
+        Err(e) => {
+            eprintln!("Can't write file: {}", e);
+            return;
+        }
+    };
+
+    stdout.write_all(response_json.as_bytes()).unwrap();
+    stdout.write_all(b"\n").unwrap();
+    stdout.flush().unwrap();
 }
 
 #[cfg(test)]

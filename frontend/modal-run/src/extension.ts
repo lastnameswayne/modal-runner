@@ -65,16 +65,41 @@ type runStatus = {
 const runStatus = new Map<string, runStatus>(); // keeps function's run status state
 
 
+function getBinaryPath(context: vscode.ExtensionContext): string {
+	const platform = process.platform;
+	const binaryName = platform === 'win32' ? 'backend.exe' : 'backend';
+
+	const bundledPath = path.join(context.extensionPath, 'bin', binaryName);
+	if (fs.existsSync(bundledPath)) {
+		return bundledPath;
+	}
+
+	const devPath = path.join(
+		context.extensionPath,
+		'..', '..', 'backend', 'target', 'debug', 'backend'
+	);
+	if (fs.existsSync(devPath)) {
+		return devPath;
+	}
+
+	throw new Error(`Backend binary not found. Checked:\n- ${bundledPath}\n- ${devPath}`);
+}
+
 export function activate(context: vscode.ExtensionContext) {
 	console.log('Extension activated');
 	if (rustProcess) {
 		vscode.window.showWarningMessage('Rust process already running');
 		return;
 	}
-	const binaryPath = path.join(
-		context.extensionPath,
-		'..', '..', 'backend', 'target', 'debug', 'backend'
-	);
+
+	let binaryPath: string;
+	try {
+		binaryPath = getBinaryPath(context);
+	} catch (err: any) {
+		vscode.window.showErrorMessage(`Modal Runner: ${err.message}`);
+		return;
+	}
+
 	rustProcess = spawn(binaryPath);
 
 	rustProcess.stdout?.on('data', (data) => {

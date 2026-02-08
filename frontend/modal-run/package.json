@@ -1,13 +1,27 @@
 {
-  "name": "modal-run",
-  "displayName": "",
-  "description": "",
-  "version": "0.0.1",
+  "name": "modal-runner",
+  "displayName": "Modal Runner",
+  "description": "Run Modal functions directly from VS Code with a single click",
+  "version": "0.1.0",
+  "publisher": "YOUR_PUBLISHER_ID",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/YOUR_USERNAME/modalrunbutton"
+  },
   "engines": {
     "vscode": "^1.85.0"
   },
   "categories": [
-    "Other"
+    "Other",
+    "Programming Languages"
+  ],
+  "keywords": [
+    "modal",
+    "python",
+    "serverless",
+    "cloud",
+    "run"
   ],
   "activationEvents": [
     "onStartupFinished"
@@ -31,9 +45,15 @@
     "watch": "tsc -watch -p ./",
     "pretest": "npm run compile && npm run lint",
     "lint": "eslint src",
-    "test": "vscode-test"
+    "test": "vscode-test",
+    "package": "vsce package",
+    "package:darwin-arm64": "vsce package --target darwin-arm64",
+    "package:darwin-x64": "vsce package --target darwin-x64",
+    "package:linux-x64": "vsce package --target linux-x64",
+    "package:win32-x64": "vsce package --target win32-x64"
   },
   "devDependencies": {
+    "@vscode/vsce": "^2.22.0",
     "@types/vscode": "^1.108.1",
     "@types/mocha": "^10.0.10",
     "@types/node": "22.x",

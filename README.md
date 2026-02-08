@@ -1,31 +1,20 @@
-Function Types to Support
-  ┌────────────────────┬───────────────────────────┬───────────────────────────────┐
-  │        Type        │         Decorator         │       Special Handling        │
-  ├────────────────────┼───────────────────────────┼───────────────────────────────┤
-  │ Basic function     │ @app.function()           │ ▶ Run                         │
-  ├────────────────────┼───────────────────────────┼───────────────────────────────┤
-  │ Local entrypoint   │ @app.local_entrypoint()   │ ▶ Run (local)                 │
-  ├────────────────────┼───────────────────────────┼───────────────────────────────┤
-  │ With parameters    │ def func(x: int)          │ Show input dialog             │
-  ├────────────────────┼───────────────────────────┼───────────────────────────────┤
-  │ GPU function       │ gpu="H100"                │ Show GPU badge, cost estimate │
-  ├────────────────────┼───────────────────────────┼───────────────────────────────┤
-  │ Scheduled          │ schedule=modal.Cron(...)  │ Show schedule, "Run Now"      │
-  ├────────────────────┼───────────────────────────┼───────────────────────────────┤
-  │ Web endpoint       │ @modal.fastapi_endpoint() │ Deploy + show URL             │
-  ├────────────────────┼───────────────────────────┼───────────────────────────────┤
-  │ Parametrized class │ @app.cls()                │ Expand methods, class params  │
-  └────────────────────┴───────────────────────────┴───────────────────────────────┘
+# Modal Runner
+Runs Modal functions directly from VS Code with a single click.
+
+## How to run
 
 
-Upcoming features:
- - Show run ID and run status after clicking Run
 
- - Store recent runs in DB
- - Support parameterized functions
- - Deploy button?
- - Cost estimation??
- - Tab in IDE showing all targets.
-  
+## How it works
+The extension consists of a Typescript frontend a Rust backend communicating over stdin.
 
+  ┌─────────────────┐      JSON/stdin       ┌─────────────────┐
+  │   TypeScript    │ ──────────────────▶   │  Rust Backend   │
+  │   Frontend      │                       │                 │
+  │                 │ ◀──────────────────   │                 │
+  └─────────────────┘    function list      └─────────────────┘
+
+The Typescript backend reads the python file and sends it to the Rust backend. The Rust backend parses the file and returns all the functions. The Typescript frontend then renders a Run button above those functions. The frontend also handles actually runnning the function with `modal run`.
+
+I only picked this architecture because I wanted to use Rust. It would have been a lot easier to do everything in Typescript.
 
