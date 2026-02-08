@@ -105,8 +105,24 @@ fn write_response_to_stdout(stdout: &mut Stdout, response: Response) {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+
     #[test]
-    fn it_works() {
-        assert_eq!(2 + 2, 4);
+    fn test_read_functions_from_file() {
+        let fixture_path = concat!(env!("CARGO_MANIFEST_DIR"), "/tests/fixtures/test_app.py");
+        let input =
+            serde_json::json!({
+            "file": fixture_path,
+            "id": "test-1"
+        }).to_string();
+
+        let response = read_functions_from_file(&input).unwrap();
+
+        assert_eq!(response.id, "test-1");
+        assert_eq!(response.functions.len(), 2);
+        assert_eq!(response.functions[0].name, "my_function");
+        assert_eq!(response.functions[0].line, 5);
+        assert_eq!(response.functions[1].name, "main");
+        assert_eq!(response.functions[1].line, 9);
     }
 }
