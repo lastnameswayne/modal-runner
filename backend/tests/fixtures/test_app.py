@@ -9,3 +9,7 @@ def my_function():
 @app.local_entrypoint()
 def main():
     pass
+
+@app.cls()
+class MyModel:
+    pass

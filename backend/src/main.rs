@@ -20,6 +20,9 @@ struct Function {
     line: usize,
 }
 
+const SUPPORTED_DECORATORS: &[&str] = &["local_entrypoint", "function"];
+const EXCLUDED_DECORATORS: &[&str] = &["web_endpoint", "schedule"];
+
 fn main() {
     let stdin = io::stdin();
     let mut stdout = io::stdout();
@@ -34,14 +37,18 @@ fn main() {
         if line.trim().is_empty() {
             continue;
         }
-        let response = match read_functions_from_file(&line) {
-            Ok(r) => r,
+        match read_functions_from_file(&line) {
+            Ok(response) => {
+                write_response_to_stdout(&mut stdout, response);
+            }
             Err(e) => {
                 eprintln!("Could not read functions in file: {e}");
-                return;
+                let id = serde_json::from_str::<Request>(&line)
+                    .map(|r| r.id)
+                    .unwrap_or_default();
+                write_error_to_stdout(&mut stdout, id, format!("{e}"));
             }
         };
-        write_response_to_stdout(&mut stdout, response);
     }
 }
 
@@ -66,6 +73,9 @@ fn parse_all_decorated_functions(root_node: Node, source_code: String) -> Vec<Fu
         if child.kind() != "decorated_definition" {
             continue;
         }
+        if !has_supported_decorator(&child, &source_code) {
+            continue;
+        }
         if
             let Some(name) = child
                 .child_by_field_name("definition")
@@ -80,6 +90,27 @@ fn parse_all_decorated_functions(root_node: Node, source_code: String) -> Vec<Fu
         }
     }
     return functions;
+}
+
+fn has_supported_decorator(node: &Node, source_code: &str) -> bool {
+    let mut has_supported = false;
+    for decorator in node.children(&mut node.walk()) {
+        if decorator.kind() != "decorator" {
+            continue;
+        }
+        let decorator_text: &str = &source_code[decorator.byte_range()];
+        for name in EXCLUDED_DECORATORS {
+            if decorator_text.contains(name) {
+                return false;
+            }
+        }
+        for name in SUPPORTED_DECORATORS {
+            if decorator_text.contains(name) {
+                has_supported = true;
+            }
+        }
+    }
+    return has_supported;
 }
 
 fn get_python_parser() -> Result<Parser, LanguageError> {
@@ -99,6 +130,13 @@ fn write_response_to_stdout(stdout: &mut Stdout, response: Response) {
     };
 
     stdout.write_all(response_json.as_bytes()).unwrap();
+    stdout.write_all(b"\n").unwrap();
+    stdout.flush().unwrap();
+}
+
+fn write_error_to_stdout(stdout: &mut Stdout, id: String, error: String) {
+    let error_json = serde_json::json!({"id": id, "error": error}).to_string();
+    stdout.write_all(error_json.as_bytes()).unwrap();
     stdout.write_all(b"\n").unwrap();
     stdout.flush().unwrap();
 }

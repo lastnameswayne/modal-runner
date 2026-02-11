@@ -258,6 +258,10 @@ class ModalCodeLensProvider implements vscode.CodeLensProvider {
 
 		let command = { command: "parse", file: document.uri.fsPath, id: randomUUID() }
 		let res = await request(command)
+		if (res.error) {
+			console.error('Backend error:', res.error);
+			return [];
+		}
 		res.functions.forEach((f: any) => {
 			let line = f.line - 1
 			const range = new vscode.Range(line, 0, line, 0);

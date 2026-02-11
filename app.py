@@ -51,22 +51,13 @@ def daily_job():
     return "Scheduled job completed"
 
 
-# -----------------------------------------------------------------------------
-# 6. Web endpoint (FastAPI)
-# -----------------------------------------------------------------------------
-@app.function()
-@modal.web_endpoint()
-def web_hello(name: str = "World"):
-    return {"message": f"Hello, {name}!"}
-
 
 # -----------------------------------------------------------------------------
 # 7. Parametrized class with methods
 # -----------------------------------------------------------------------------
 @app.cls(gpu="T4")
 class Model:
-    def __init__(self):
-        self.model_name = "example-model"
+    model_name: str = modal.parameter(default="example-model")
 
     @modal.enter()
     def load_model(self):
