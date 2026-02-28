@@ -53,9 +53,9 @@ jobs:
         working-directory: frontend/modal-run
 
       - name: Package
-        run: npx vsce package --target ${{ matrix.vsce-target }}
+        run: npx vsce package --target ${{ matrix.vsce-target }} --out extension.vsix
         working-directory: frontend/modal-run
 
       - name: Publish to Open VSX
-        run: npx ovsx publish *.vsix -p ${{ secrets.OVSX_PAT }}
+        run: npx ovsx publish extension.vsix -p ${{ secrets.OVSX_PAT }}
         working-directory: frontend/modal-run
