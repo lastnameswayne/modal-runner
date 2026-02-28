@@ -2,7 +2,7 @@
   "name": "modal-runner",
   "displayName": "Modal Runner",
   "description": "Run Modal functions directly from VS Code with a single click",
-  "version": "New version",
+  "version": "0.1.9",
   "publisher": "swayne",
   "license": "MIT",
   "repository": {

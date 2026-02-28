@@ -16,6 +16,7 @@ def complete(prompt: str) -> str:
     return response.choices[0].message.content
 
 
+
 @app.local_entrypoint()
 def main(prompt: str = "What is Modal?"):
     result = complete.remote(prompt)
