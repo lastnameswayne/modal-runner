@@ -53,7 +53,7 @@ export function activate(context: vscode.ExtensionContext) {
 		rustProcess = null;
 	});
 
-	const outputChannel = vscode.window.createOutputChannel('Modal');
+	const outputChannel = vscode.window.createOutputChannel('Modal-Runner');
 	const provider = new ModalCodeLensProvider();
 	vscode.commands.registerCommand(runFunctionCommand,
 		async (filePath: string, functionName: string, params: any[]) => {
@@ -96,8 +96,8 @@ export function activate(context: vscode.ExtensionContext) {
 				if (urlMatch) {
 					runURL = urlMatch[0]
 				}
-
-				outputChannel.append(data.toString());
+				outputChannel.append(text);
+				outputChannel.show(true);
 			});
 			proc.stderr.on('data', (data: Buffer) => {
 				const text = data.toString()
@@ -105,8 +105,8 @@ export function activate(context: vscode.ExtensionContext) {
 				if (urlMatch) {
 					runURL = urlMatch[0]
 				}
-
 				outputChannel.append(text);
+				outputChannel.show(true);
 			});
 
 			proc.on('error', (err: Error) => {
@@ -136,6 +136,14 @@ export function activate(context: vscode.ExtensionContext) {
 			vscode.env.openExternal(vscode.Uri.parse(status.modalRunURL));
 		}
 	})
+
+	context.subscriptions.push(
+		vscode.workspace.onDidChangeTextDocument((e) => {
+			if (e.document.languageId === 'python') {
+				provider.refresh();
+			}
+		})
+	);
 
 	context.subscriptions.push(
 		vscode.languages.registerCodeLensProvider(
