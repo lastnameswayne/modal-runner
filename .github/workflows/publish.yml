@@ -57,7 +57,5 @@ jobs:
         working-directory: frontend/modal-run
 
       - name: Publish to Open VSX
-        run: npx ovsx publish --target ${{ matrix.vsce-target }} *.vsix
+        run: npx ovsx publish *.vsix -p ${{ secrets.OVSX_PAT }}
         working-directory: frontend/modal-run
-        env:
-          OVSX_PAT: ${{ secrets.OVSX_PAT }}
