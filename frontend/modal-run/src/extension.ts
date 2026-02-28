@@ -123,32 +123,7 @@ export function activate(context: vscode.ExtensionContext) {
 	const outputChannel = vscode.window.createOutputChannel('Modal');
 	const provider = new ModalCodeLensProvider();
 	vscode.commands.registerCommand(runFunctionCommand,
-		async (filePath: string, functionName: string) => {
-			console.log('1. Command triggered:', functionName);
-			console.log('2. Status set to running');
-			console.log('3. refresh() called');
-			const workspaceRoot = vscode.workspace.workspaceFolders?.[0]?.uri.fsPath;
-			if (!workspaceRoot) {
-				console.log("Workspace not found")
-				return
-			}
-
-			outputChannel.show();
-			outputChannel.appendLine(`Running: modal run ${filePath}::${functionName}`);
-			outputChannel.appendLine('---');
-
-			let runURL = ""
-
-			runStatus.set(functionName, { runStatus: 'running', modalRunURL: '', runTimestamp: new Date() })
-			// Keep refreshing every 500ms before the modal function returns.
-			// Otherwise, the runStatus will not update to 'running', due to the refresh event being queued.   
-			// setInterval fixes this because it retries, ensuring that a single refresh() does not get batched (theory from Claude).
-			const refreshInterval = setInterval(() => {
-				console.log('Interval refresh');
-				provider.refresh();
-			}, 500);
-
-			const { spawn } = require('child_process');
+		async (filePath: string, functionName: string, params: any[]) => {
 			const modalPath = findModalPath(filePath);
 			if (!modalPath) {
 				vscode.window.showErrorMessage(
@@ -161,9 +136,27 @@ export function activate(context: vscode.ExtensionContext) {
 				});
 				return;
 			}
-			const proc = spawn(modalPath, ['run', `${filePath}::${functionName}`], {
-				shell: true
-			});
+
+			const paramArgs = await promptParams(params);
+			if (paramArgs === undefined) {
+				return; // user pressed Escape
+			}
+
+			outputChannel.clear();
+			outputChannel.show();
+			const fullCommand = `modal run ${filePath}::${functionName}${paramArgs.length ? ' ' + paramArgs.join(' ') : ''}`;
+			outputChannel.appendLine(`Running: ${fullCommand}`);
+			outputChannel.appendLine('---');
+
+			let runURL = ""
+
+			runStatus.set(functionName, { runStatus: 'running', modalRunURL: '', runTimestamp: new Date() })
+			const refreshInterval = setInterval(() => {
+				provider.refresh();
+			}, 500);
+
+			const { spawn } = require('child_process');
+			const proc = spawn(modalPath, ['run', `${filePath}::${functionName}`, ...paramArgs]);
 
 			proc.stdout.on('data', (data: Buffer) => {
 				const text = data.toString()
@@ -182,10 +175,7 @@ export function activate(context: vscode.ExtensionContext) {
 					runURL = urlMatch[0]
 				}
 
-				const now = new Date();
-				runStatus.set(functionName, { runStatus: 'failed', modalRunURL: runURL, runTimestamp: now })
-
-				outputChannel.append(data.toString());
+				outputChannel.append(text);
 			});
 
 			proc.on('error', (err: Error) => {
@@ -224,6 +214,27 @@ export function activate(context: vscode.ExtensionContext) {
 		)
 	);
 }
+async function promptParams(params: any[]): Promise<string[] | undefined> {
+	const paramArgs: string[] = [];
+	for (const param of params) {
+		const label = param.param_type
+			? `${param.name} (${param.param_type}${param.default ? ', default: ' + param.default : ''})`
+			: param.name;
+		const value = await vscode.window.showInputBox({
+			prompt: `Enter value for '${label}'`,
+			value: param.default || '',
+			placeHolder: param.param_type || 'value',
+		});
+		if (value === undefined) {
+			return undefined; // user pressed Escape
+		}
+		if (value !== '') {
+			paramArgs.push(`--${param.name}`, value);
+		}
+	}
+	return paramArgs;
+}
+
 function request(command: any): Promise<any> {
 	return new Promise((resolve, reject) => {
 		if (!rustProcess || !rustProcess.stdin) {
@@ -268,7 +279,7 @@ class ModalCodeLensProvider implements vscode.CodeLensProvider {
 			const lens = new vscode.CodeLens(range, {
 				title: `▶ Run`,
 				command: runFunctionCommand,
-				arguments: [document.uri.fsPath, f.name]
+				arguments: [document.uri.fsPath, f.name, f.params || []]
 			});
 			codeLenses.push(lens);
 

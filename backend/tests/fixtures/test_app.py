@@ -13,3 +13,7 @@ def main():
 @app.cls()
 class MyModel:
     pass
+
+@app.function()
+def with_params(name: str, count: int = 3):
+    pass
