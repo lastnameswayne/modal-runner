@@ -160,7 +160,7 @@ async function promptParams(params: any[]): Promise<string[] | undefined> {
 			return undefined; // user pressed Escape
 		}
 		if (value !== '') {
-			paramArgs.push(`--${param.name}`, value);
+			paramArgs.push(`--${param.name.replaceAll('_', '-')}`, value);
 		}
 	}
 	return paramArgs;
