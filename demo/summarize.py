@@ -34,10 +34,6 @@ async def remote(_idx):
     return gpu
 
 
-
-
-
-
 @app.local_entrypoint()
 def local(count: int = 32):
     from collections import Counter

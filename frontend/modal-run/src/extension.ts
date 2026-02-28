@@ -82,7 +82,8 @@ export function activate(context: vscode.ExtensionContext) {
 			outputChannel.appendLine('---');
 
 
-			runStatus.set(functionName, { runStatus: 'running', modalRunURL: '', runTimestamp: new Date() })
+			const statusKey = `${filePath}::${functionName}`;
+			runStatus.set(statusKey, { runStatus: 'running', modalRunURL: '', runTimestamp: new Date() })
 			const refreshInterval = setInterval(() => {
 				provider.refresh();
 			}, 500);
@@ -119,9 +120,9 @@ export function activate(context: vscode.ExtensionContext) {
 				clearInterval(refreshInterval);
 				const now = new Date();
 				if (code == 0) {
-					runStatus.set(functionName, { runStatus: 'succeeded', modalRunURL: runURL, runTimestamp: now })
+					runStatus.set(statusKey, { runStatus: 'succeeded', modalRunURL: runURL, runTimestamp: now })
 				} else {
-					runStatus.set(functionName, { runStatus: 'failed', modalRunURL: '', runTimestamp: now })
+					runStatus.set(statusKey, { runStatus: 'failed', modalRunURL: '', runTimestamp: now })
 				}
 				provider.refresh()
 
@@ -136,14 +137,6 @@ export function activate(context: vscode.ExtensionContext) {
 			vscode.env.openExternal(vscode.Uri.parse(status.modalRunURL));
 		}
 	})
-
-	context.subscriptions.push(
-		vscode.workspace.onDidChangeTextDocument((e) => {
-			if (e.document.languageId === 'python') {
-				provider.refresh();
-			}
-		})
-	);
 
 	context.subscriptions.push(
 		vscode.languages.registerCodeLensProvider(
@@ -202,7 +195,7 @@ class ModalCodeLensProvider implements vscode.CodeLensProvider {
 		}
 		const codeLenses: vscode.CodeLens[] = [];
 
-		let command = { command: "parse", file: document.uri.fsPath, id: randomUUID() }
+		let command = { command: "parse", file: document.uri.fsPath, content: document.getText(), id: randomUUID() }
 		let res = await request(command)
 		if (res.error) {
 			console.error('Backend error:', res.error);
@@ -219,7 +212,7 @@ class ModalCodeLensProvider implements vscode.CodeLensProvider {
 			codeLenses.push(lens);
 
 
-			const status = runStatus.get(f.name)
+			const status = runStatus.get(`${document.uri.fsPath}::${f.name}`)
 			if (!status?.runTimestamp) {
 				return;
 			}

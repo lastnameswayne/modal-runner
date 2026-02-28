@@ -7,6 +7,7 @@ use tree_sitter::{ LanguageError, Node, Parser };
 struct Request {
     file: String,
     id: String,
+    content: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -63,7 +64,10 @@ fn main() {
 
 fn read_functions_from_file(line: &str) -> Result<Response, Box<dyn std::error::Error>> {
     let request: Request = serde_json::from_str(line)?;
-    let source_code = fs::read_to_string(&request.file)?;
+    let source_code = match request.content {
+        Some(content) => content,
+        None => fs::read_to_string(&request.file)?,
+    };
     let mut parser = get_python_parser()?;
     let tree = parser.parse(&source_code, None).ok_or("Failed to parse")?;
 

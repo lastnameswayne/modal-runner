@@ -19,8 +19,6 @@ def get_links(url):
 
 
 
-
-
 @app.local_entrypoint()
 def main(url):
     links = get_links.remote(url)
