@@ -12,7 +12,7 @@ jobs:
         include:
           - os: macos-14
             vsce-target: darwin-arm64
-          - os: macos-13
+          - os: macos-12
             vsce-target: darwin-x64
           - os: ubuntu-latest
             vsce-target: linux-x64
