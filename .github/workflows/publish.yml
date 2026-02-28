@@ -36,20 +36,15 @@ jobs:
 
       - name: Copy binary (Unix, native)
         if: runner.os != 'Windows' && !matrix.rust-target
-        run: |
-          mkdir -p frontend/modal-run/bin
-          cp backend/target/release/backend frontend/modal-run/bin/backend
+        run: cp backend/target/release/backend frontend/modal-run/bin/backend
 
       - name: Copy binary (Unix, cross-compiled)
         if: runner.os != 'Windows' && matrix.rust-target
-        run: |
-          mkdir -p frontend/modal-run/bin
-          cp backend/target/${{ matrix.rust-target }}/release/backend frontend/modal-run/bin/backend
+        run: cp backend/target/${{ matrix.rust-target }}/release/backend frontend/modal-run/bin/backend
 
       - name: Copy binary (Windows)
         if: runner.os == 'Windows'
         run: |
-          mkdir -p frontend/modal-run/bin
           cp backend/target/release/backend.exe frontend/modal-run/bin/backend.exe
 
       - name: Setup Node.js
