@@ -21,7 +21,6 @@ const runStatus = new Map<string, runStatus>(); // keeps function's run status s
 
 
 export function activate(context: vscode.ExtensionContext) {
-	console.log('Extension activated');
 	if (rustProcess) {
 		vscode.window.showWarningMessage('Rust process already running');
 		return;
@@ -39,7 +38,6 @@ export function activate(context: vscode.ExtensionContext) {
 
 	rustProcess.stdout?.on('data', (data) => {
 		const response = JSON.parse(data)
-		console.log("got response", response)
 		const resolve = requestsMap.get(response.id)
 		if (resolve) {
 			requestsMap.delete(response.id)
@@ -51,8 +49,7 @@ export function activate(context: vscode.ExtensionContext) {
 		console.error('Rust error:', data.toString());
 	});
 
-	rustProcess.on('close', (code) => {
-		console.log(`Rust process exited with code ${code}`);
+	rustProcess.on('close', () => {
 		rustProcess = null;
 	});
 
@@ -135,7 +132,6 @@ export function activate(context: vscode.ExtensionContext) {
 	);
 
 	vscode.commands.registerCommand(openURLCommand, (status: runStatus) => {
-		console.log('Opening dashboard:', status.modalRunURL);
 		if (status.modalRunURL) {
 			vscode.env.openExternal(vscode.Uri.parse(status.modalRunURL));
 		}
@@ -173,11 +169,9 @@ async function promptParams(params: any[]): Promise<string[] | undefined> {
 function request(command: any): Promise<any> {
 	return new Promise((resolve, reject) => {
 		if (!rustProcess || !rustProcess.stdin) {
-			console.log("Rustprocess nil", rustProcess)
 			return []
 		}
 
-		console.log("writing request to rust", JSON.stringify(command))
 		rustProcess?.stdin?.write(JSON.stringify(command) + "\n")
 		requestsMap.set(command.id, resolve)
 		return
@@ -190,14 +184,12 @@ class ModalCodeLensProvider implements vscode.CodeLensProvider {
 	readonly onDidChangeCodeLenses = this._onDidChangeCodeLenses.event;
 
 	refresh() {
-		console.log('4. Inside refresh(), firing event');
 		this._onDidChangeCodeLenses.fire()
 	}
 
 
 	async provideCodeLenses(document: vscode.TextDocument): Promise<vscode.CodeLens[]> {
 		if (!rustProcess || !rustProcess.stdin) {
-			console.log("Rustprocess nil", rustProcess)
 			return []
 		}
 		const codeLenses: vscode.CodeLens[] = [];
@@ -220,7 +212,6 @@ class ModalCodeLensProvider implements vscode.CodeLensProvider {
 
 
 			const status = runStatus.get(f.name)
-			console.log(`6. Status for ${f.name}:`, status);
 			if (!status?.runTimestamp) {
 				return;
 			}
