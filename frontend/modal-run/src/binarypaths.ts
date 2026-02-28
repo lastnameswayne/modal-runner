@@ -53,6 +53,9 @@ export function getBinaryPath(context: vscode.ExtensionContext): string {
 
 	const bundledPath = path.join(context.extensionPath, 'bin', binaryName);
 	if (fs.existsSync(bundledPath)) {
+		if (platform !== 'win32') {
+			fs.chmodSync(bundledPath, 0o755);
+		}
 		return bundledPath;
 	}
 
