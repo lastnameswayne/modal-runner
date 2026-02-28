@@ -3,14 +3,14 @@
   "displayName": "Modal Runner",
   "description": "Run Modal functions directly from VS Code with a single click",
   "version": "0.1.0",
-  "publisher": "YOUR_PUBLISHER_ID",
+  "publisher": "swayne",
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/YOUR_USERNAME/modalrunbutton"
+    "url": "https://github.com/lastnameswayne/modal-runner"
   },
   "engines": {
-    "vscode": "^1.85.0"
+    "vscode": "^1.108.0"
   },
   "categories": [
     "Other",

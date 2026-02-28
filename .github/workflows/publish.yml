@@ -1,0 +1,63 @@
+name: Publish Extension
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        include:
+          - os: macos-14
+            vsce-target: darwin-arm64
+          - os: macos-13
+            vsce-target: darwin-x64
+          - os: ubuntu-latest
+            vsce-target: linux-x64
+          - os: windows-latest
+            vsce-target: win32-x64
+
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Build backend
+        run: cargo build --release
+        working-directory: backend
+
+      - name: Copy binary (Unix)
+        if: runner.os != 'Windows'
+        run: |
+          mkdir -p frontend/modal-run/bin
+          cp backend/target/release/backend frontend/modal-run/bin/backend
+
+      - name: Copy binary (Windows)
+        if: runner.os == 'Windows'
+        run: |
+          mkdir -p frontend/modal-run/bin
+          cp backend/target/release/backend.exe frontend/modal-run/bin/backend.exe
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm install
+        working-directory: frontend/modal-run
+
+      - name: Package
+        run: npx vsce package --target ${{ matrix.vsce-target }}
+        working-directory: frontend/modal-run
+
+      - name: Publish to Open VSX
+        run: npx ovsx publish --target ${{ matrix.vsce-target }} *.vsix
+        working-directory: frontend/modal-run
+        env:
+          OVSX_PAT: ${{ secrets.OVSX_PAT }}
