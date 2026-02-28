@@ -10,10 +10,11 @@ jobs:
     strategy:
       matrix:
         include:
-          - os: macos-14
+          - os: macos-latest
             vsce-target: darwin-arm64
-          - os: macos-12
+          - os: macos-latest
             vsce-target: darwin-x64
+            rust-target: x86_64-apple-darwin
           - os: ubuntu-latest
             vsce-target: linux-x64
           - os: windows-latest
@@ -26,16 +27,24 @@ jobs:
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.rust-target }}
 
       - name: Build backend
-        run: cargo build --release
+        run: cargo build --release ${{ matrix.rust-target && format('--target {0}', matrix.rust-target) || '' }}
         working-directory: backend
 
-      - name: Copy binary (Unix)
-        if: runner.os != 'Windows'
+      - name: Copy binary (Unix, native)
+        if: runner.os != 'Windows' && !matrix.rust-target
         run: |
           mkdir -p frontend/modal-run/bin
           cp backend/target/release/backend frontend/modal-run/bin/backend
+
+      - name: Copy binary (Unix, cross-compiled)
+        if: runner.os != 'Windows' && matrix.rust-target
+        run: |
+          mkdir -p frontend/modal-run/bin
+          cp backend/target/${{ matrix.rust-target }}/release/backend frontend/modal-run/bin/backend
 
       - name: Copy binary (Windows)
         if: runner.os == 'Windows'
