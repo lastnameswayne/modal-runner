@@ -1,6 +1,6 @@
 # Modal Runner
 
-VS Code extension that adds a "Run" button above Modal functions in Python files. Clicking it runs the function!
+VS Code extension that adds a "Run" button above Modal functions in Python files. Clicking it runs the function! Useful for easily running functions with -or without parameters.
 
 [Install from VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=swayne.modal-runner)
 
