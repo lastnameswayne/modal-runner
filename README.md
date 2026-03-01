@@ -2,6 +2,8 @@
 
 VS Code extension that adds a "Run" button above `@app.function()` and `@app.local_entrypoint()` functions in Python files. Clicking it runs `modal run file.py::function_name` and shows output in a VS Code output channel.
 
+[Install from VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=swayne.modal-runner)
+
 <video src="demo/modal-runner.mp4" width="100%" controls autoplay loop muted></video>
 
 ## Build
