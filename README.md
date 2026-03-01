@@ -4,7 +4,7 @@ VS Code extension that adds a "Run" button above Modal functions in Python files
 
 [Install from VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=swayne.modal-runner)
 
-<video src="https://github.com/user-attachments/assets/7f90d417-2230-46cb-b8d4-26fee32cd82e" width="100%" controls autoplay loop muted></video>
+<video src="https://github.com/user-attachments/assets/2c0cf00c-ece5-441d-9a75-626f935fa7cf" width="100%" controls autoplay loop muted></video>
 
 ## Prerequisites
 
@@ -15,7 +15,7 @@ VS Code extension that adds a "Run" button above Modal functions in Python files
 1. Open a Python file that uses Modal
 2. Click "Run" above any `@app.function()` or `@app.local_entrypoint()`
 3. Output appears in the "Modal Runner" output channel
-4. After the run completes, a status lens shows inline — succeeded or failed, with elapsed time and a link to the Modal dashboard
+4. After the run completes, a status lens shows inline if the run succeeded or failed, with elapsed time and a link to the Modal dashboard
 
 ## Modal not found?
 
