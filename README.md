@@ -1,35 +1,25 @@
 # Modal Runner
 
-VS Code extension that adds a "Run" button above `@app.function()` and `@app.local_entrypoint()` functions in Python files. Clicking it runs `modal run file.py::function_name` and shows output in a VS Code output channel.
+VS Code extension that adds a "Run" button above Modal functions in Python files. Clicking it runs the function!
 
 [Install from VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=swayne.modal-runner)
 
-<video src="demo/modal-runner.mp4" width="100%" controls autoplay loop muted></video>
+<video src="https://github.com/user-attachments/assets/7f90d417-2230-46cb-b8d4-26fee32cd82e" width="100%" controls autoplay loop muted></video>
 
-## Build
+## Prerequisites
 
-Prerequisites: Rust toolchain, Node.js, npm.
-
-```
-./build.sh
-```
-
-This builds the Rust backend, compiles the TypeScript frontend, and packages a `.vsix` file.
-
-## Install
-
-```
-code --install-extension frontend/modal-run/modal-runner-0.1.0.vsix
-```
-
-You also need the [Modal CLI](https://modal.com/docs/guide) installed and authenticated (`modal token new`). The extension auto-detects the `modal` binary from common locations (`.venv/bin/modal`, `~/.local/bin/modal`, etc.), or you can set the path manually in Settings > Modal Run.
+- [Modal CLI](https://modal.com/docs/guide) installed and authenticated (`modal token new`)
 
 ## Usage
 
 1. Open a Python file that uses Modal
 2. Click "Run" above any `@app.function()` or `@app.local_entrypoint()`
-3. Output appears in the "Modal" output channel
-4. Status (running/succeeded/failed) shows inline with a link to the Modal dashboard
+3. Output appears in the "Modal Runner" output channel
+4. After the run completes, a status lens shows inline — succeeded or failed, with elapsed time and a link to the Modal dashboard
+
+## Modal not found?
+
+The extension looks for the `modal` binary in common locations: `.venv/bin/modal`, `~/.local/bin/modal`, and your `PATH`. If it can't find it, you'll get an error with an "Open Settings" button. Set the path manually via **Settings → Modal Run → Modal Path**.
 
 ## How it works
 
@@ -43,6 +33,6 @@ The extension consists of a TypeScript frontend and a Rust backend communicating
   └─────────────────┘    function list      └─────────────────┘
 ```
 
-The frontend sends the file path to the Rust backend, which parses the Python AST using tree-sitter and returns decorated functions. The frontend renders Run buttons and handles executing `modal run`.
+The frontend sends the file contents to the Rust backend, which parses the Python AST using tree-sitter and returns decorated functions. The frontend renders Run buttons and handles executing `modal run`.
 
 I only picked this architecture because I wanted to use Rust. It would have been a lot easier to do everything in TypeScript.
