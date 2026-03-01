@@ -18,6 +18,6 @@ def complete(prompt: str) -> str:
 
 
 @app.local_entrypoint()
-def main(prompt: str = "What is Modal?"):
+def main(prompt: str = "Describe Modal Labs."):
     result = complete.remote(prompt)
     print(result)

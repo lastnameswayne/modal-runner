@@ -112,8 +112,8 @@ export function activate(context: vscode.ExtensionContext) {
 
 			proc.on('error', (err: Error) => {
 				clearInterval(refreshInterval);
-
 				outputChannel.appendLine(`Error: ${err.message}`);
+				outputChannel.show(true);
 			});
 
 			proc.on('close', (code: number) => {
@@ -125,9 +125,8 @@ export function activate(context: vscode.ExtensionContext) {
 					runStatus.set(statusKey, { runStatus: 'failed', modalRunURL: '', runTimestamp: now })
 				}
 				provider.refresh()
-
-
 				outputChannel.appendLine(`\nExited with code ${code}`);
+				outputChannel.show(true);
 			});
 		}
 	);
